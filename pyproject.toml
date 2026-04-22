@@ -75,6 +75,7 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 asyncio_mode = "auto"
 addopts = "--cov=src/streamgraph --cov-report=term-missing --cov-report=html"
+pythonpath = ["src"]
 
 [tool.coverage.run]
 source = ["src/streamgraph"]

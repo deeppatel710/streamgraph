@@ -50,7 +50,7 @@ from streamgraph.domain.models import EntityEdge, Transaction
 from streamgraph.operators.alert_sink import AlertGeneratorFunction
 from streamgraph.operators.deduplication import DeduplicationFunction
 from streamgraph.operators.entity_resolution import CROSS_SHARD_TAG, EntityResolutionFunction
-from streamgraph.operators.feature_enrichment import FeatureEnrichmentFunction
+from streamgraph.operators.feature_computation import StreamingFeatureFunction
 from streamgraph.operators.risk_scorer import RiskScorerFunction
 
 logger = logging.getLogger(__name__)
@@ -169,28 +169,15 @@ def build_pipeline(env: Any) -> None:
     component_sink = build_component_sink()
     er_result.sink_to(component_sink).name("sink-components")
 
-    # ---- Feature enrichment -------------------------------------------
-    # Re-read raw transactions for the risk-scoring branch.
-    # We broadcast the latest component snapshot to join with transactions.
-    class TxnToScoringPayload(FlatMapFunction):  # type: ignore[misc]
-        """Re-parse raw transactions and build scoring payloads."""
-        def flat_map(self, value: str):  # type: ignore[override]
-            try:
-                raw = json.loads(value)
-                yield json.dumps({
-                    "transaction_id": raw.get("transaction_id", ""),
-                    "account_id": raw.get("account_id", ""),
-                    "component_id": raw.get("account_id", ""),
-                })
-            except Exception:
-                pass
-
+    # ---- Feature computation + Risk scoring ---------------------------
+    # StreamingFeatureFunction computes per-account features (velocity,
+    # amount z-score, card-testing score, etc.) directly from the stream
+    # using Flink keyed state — no Feast dependency required.
     scoring_stream = (
         raw_stream
-        .flat_map(TxnToScoringPayload(), output_type=Types.STRING())
-        .name("prepare-scoring-payload")
-        .map(FeatureEnrichmentFunction(), output_type=Types.STRING())
-        .name("feast-enrichment")
+        .key_by(lambda x: json.loads(x).get("account_id", ""))
+        .process(StreamingFeatureFunction(), output_type=Types.STRING())
+        .name("streaming-features")
         .key_by(lambda x: json.loads(x).get("account_id", ""))
         .process(RiskScorerFunction(), output_type=Types.STRING())
         .name("risk-scorer")
