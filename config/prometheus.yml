@@ -1,0 +1,19 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: flink
+    static_configs:
+      - targets:
+          - flink-jm:9249
+          - flink-tm:9249
+    metrics_path: /
+
+  - job_name: kafka
+    static_configs:
+      - targets: ["kafka:9308"]   # requires kafka-exporter; optional
+
+  - job_name: streamgraph
+    static_configs:
+      - targets: ["generator:9090"]

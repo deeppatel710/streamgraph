@@ -1,0 +1,81 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "streamgraph"
+version = "0.1.0"
+description = "Real-time entity resolution pipeline for financial crime detection"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.9"
+keywords = ["flink", "kafka", "entity-resolution", "fraud-detection", "graph", "streaming"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "kafka-python>=2.0.2",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+    "faker>=22.0.0",
+    "numpy>=1.26.0",
+    "networkx>=3.2.1",
+    "redis>=5.0.1",
+    "orjson>=3.9.10",
+    "structlog>=24.1.0",
+    "prometheus-client>=0.19.0",
+    "click>=8.1.7",
+    "rich>=13.7.0",
+    "tenacity>=8.2.3",
+]
+
+[project.optional-dependencies]
+flink = [
+    "apache-flink==1.19.0",
+    "feast[redis,aws]>=0.36.0",
+]
+
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.23.2",
+    "pytest-cov>=4.1.0",
+    "pytest-benchmark>=4.0.0",
+    "hypothesis>=6.92.0",
+    "mypy>=1.8.0",
+    "ruff>=0.1.9",
+    "pre-commit>=3.6.0",
+]
+
+[project.scripts]
+streamgraph-generate = "generator.fraud_ring_generator:main"
+streamgraph-pipeline = "streamgraph.pipeline.fraud_detection:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/streamgraph", "generator", "feast"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "--cov=src/streamgraph --cov-report=term-missing --cov-report=html"
+
+[tool.coverage.run]
+source = ["src/streamgraph"]
+omit = ["tests/*", "benchmarks/*"]

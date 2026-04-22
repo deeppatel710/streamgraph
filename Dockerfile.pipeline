@@ -1,0 +1,32 @@
+FROM eclipse-temurin:11-jdk-jammy
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 python3-pip python3-dev build-essential curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3 /usr/bin/python
+
+WORKDIR /app
+
+COPY src/ src/
+COPY generator/ generator/
+COPY feast/ feast/
+
+RUN pip3 install --no-cache-dir \
+    "apache-flink==1.19.0" \
+    "pydantic>=2.5.0" \
+    "pydantic-settings>=2.1.0" \
+    "redis>=5.0.1" \
+    "orjson>=3.9.10" \
+    "structlog>=24.1.0" \
+    "prometheus-client>=0.19.0" \
+    "tenacity>=8.2.3" \
+    "click>=8.1.7" \
+    "rich>=13.7.0" \
+    "kafka-python>=2.0.2" && \
+    PYFLINK_LIB=$(python3 -c "import pyflink, os; print(os.path.join(os.path.dirname(pyflink.__file__), 'lib'))") && \
+    curl -fL "https://repo1.maven.org/maven2/org/apache/flink/flink-sql-connector-kafka/3.2.0-1.19/flink-sql-connector-kafka-3.2.0-1.19.jar" \
+         -o "$PYFLINK_LIB/flink-sql-connector-kafka.jar"
+
+ENV PYTHONPATH=/app/src:/app
+
+CMD ["python3", "-m", "streamgraph.pipeline.fraud_detection", "--parallelism", "2"]

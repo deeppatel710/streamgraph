@@ -1,0 +1,53 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Flink / RocksDB
+/tmp/streamgraph-checkpoints/
+flink-*.log
+
+# Feast
+feast/data/
+feast/registry.db
+feast/online_store.db
+
+# Environment / secrets
+.env
+*.pem
+*.key
+*.p12
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# Claude Code local settings
+.claude/
+
+# Hypothesis test database
+.hypothesis/
+
+# Docker
+*.tar

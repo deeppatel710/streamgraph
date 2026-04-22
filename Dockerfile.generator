@@ -1,0 +1,13 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY pyproject.toml .
+COPY src/ src/
+COPY generator/ generator/
+
+RUN pip install --no-cache-dir kafka-python faker numpy networkx rich click pydantic pydantic-settings structlog lz4
+
+ENV PYTHONPATH=/app/src:/app
+
+ENTRYPOINT ["python", "-m", "generator.fraud_ring_generator"]
