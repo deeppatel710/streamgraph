@@ -155,13 +155,17 @@ def build_pipeline(env: Any) -> None:
             raw = json.loads(value)
             return str(shard_id(raw["source_id"], raw["target_id"], self._num_shards))
 
-    er_function = EntityResolutionFunction(num_shards=parallelism)
+    # Entity resolution runs at parallelism=1 to guarantee global Union-Find
+    # correctness. Cross-shard merges require a broadcast-state coordinator
+    # (future work); until then a single task handles all edges — Union-Find
+    # is O(α(n)) so throughput is not the bottleneck here.
+    er_function = EntityResolutionFunction(num_shards=1)
 
     er_result = (
         deduped_stream
-        .key_by(ShardKeySelector(parallelism))
+        .key_by(lambda _: "0")   # all edges to the single ER task
         .process(er_function, output_type=Types.STRING())
-        .set_parallelism(parallelism)
+        .set_parallelism(1)
         .name("entity-resolution")
     )
 

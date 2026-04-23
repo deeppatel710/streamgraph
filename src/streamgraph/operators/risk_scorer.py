@@ -18,6 +18,8 @@ R05  cross_border         Unexpectedly high cross-border activity ratio
 R06  night_activity       Disproportionate late-night (23:00-05:00 UTC) volume
 R07  device_sharing       Device used by more than N distinct accounts
 R08  new_account_burst    Account < 7 days old with high transaction velocity
+R09  known_fraud_network  Component previously confirmed as fraud (guilt by
+                          association) — overrides composite score to CRITICAL
 """
 
 from __future__ import annotations
@@ -28,6 +30,7 @@ from datetime import datetime
 from typing import Any, Dict, List, NamedTuple, Optional, Tuple
 
 from streamgraph.domain.models import ComponentSnapshot, RiskScore
+from streamgraph.operators.fraud_label_store import FraudLabelStore
 
 logger = logging.getLogger(__name__)
 
@@ -156,9 +159,11 @@ def compute_risk_score(
     component_id: str,
     features: Dict[str, Any],
     component: Optional[ComponentSnapshot] = None,
+    label_store: Optional[FraudLabelStore] = None,
 ) -> RiskScore:
     """
     Pure-function risk scorer; usable outside Flink for unit tests.
+    Pass label_store=None to skip the Redis lookup (e.g. in tests).
     """
     evaluators = [
         ("R01_large_component",   lambda: _score_large_component(component)),
@@ -186,6 +191,13 @@ def compute_risk_score(
 
     composite = min(weighted_sum, 1.0)
 
+    # R09: guilt-by-association override — if this component was previously
+    # confirmed as fraud, escalate to CRITICAL regardless of other signals.
+    if label_store is not None and label_store.is_known_fraud_component(component_id):
+        contributions["R09_known_fraud_network"] = 1.0
+        triggered.append("R09_known_fraud_network")
+        composite = 1.0
+
     return RiskScore(
         transaction_id=transaction_id,
         account_id=account_id,
@@ -211,15 +223,24 @@ class RiskScorerFunction(KeyedProcessFunction):  # type: ignore[misc]
         "transaction_id": "...",
         "account_id": "...",
         "component_id": "...",
-        "features": { ... },          # from Feast lookup
-        "component_snapshot": { ... } # optional
+        "features": { ... },
+        "component_snapshot": { ... }  # optional
       }
 
     Emits RiskScore JSON strings.
     """
 
+    def __init__(self) -> None:
+        self._label_store: Optional[FraudLabelStore] = None
+
     def open(self, runtime_context: Any) -> None:
-        pass  # stateless — feature enrichment done upstream
+        from streamgraph.config import settings
+        self._label_store = FraudLabelStore(
+            host=settings.feast.redis_host,
+            port=settings.feast.redis_port,
+            db=1,   # db=1 reserved for fraud labels; db=0 is Feast features
+        )
+        self._label_store.connect()
 
     def process_element(self, value: str, ctx: Any):  # type: ignore[override]
         try:
@@ -240,6 +261,7 @@ class RiskScorerFunction(KeyedProcessFunction):  # type: ignore[misc]
                 component_id=component_id,
                 features=features,
                 component=component,
+                label_store=self._label_store,
             )
             yield score.model_dump_json()
 
