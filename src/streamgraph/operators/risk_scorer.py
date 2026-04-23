@@ -191,9 +191,12 @@ def compute_risk_score(
 
     composite = min(weighted_sum, 1.0)
 
-    # R09: guilt-by-association override — if this component was previously
-    # confirmed as fraud, escalate to CRITICAL regardless of other signals.
-    if label_store is not None and label_store.is_known_fraud_component(component_id):
+    # R09: guilt-by-association override — fire if the component root OR the
+    # transacting account itself is in a confirmed-fraud network.
+    if label_store is not None and (
+        label_store.is_known_fraud_component(component_id)
+        or label_store.is_known_fraud_entity(account_id)
+    ):
         contributions["R09_known_fraud_network"] = 1.0
         triggered.append("R09_known_fraud_network")
         composite = 1.0
