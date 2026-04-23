@@ -51,6 +51,7 @@ from streamgraph.operators.alert_sink import AlertGeneratorFunction
 from streamgraph.operators.deduplication import DeduplicationFunction
 from streamgraph.operators.entity_resolution import CROSS_SHARD_TAG, EntityResolutionFunction
 from streamgraph.operators.feature_computation import StreamingFeatureFunction
+from streamgraph.operators.fraud_confirmation import FraudConfirmationFunction
 from streamgraph.operators.risk_scorer import RiskScorerFunction
 
 logger = logging.getLogger(__name__)
@@ -96,9 +97,15 @@ def build_pipeline(env: Any) -> None:
     inject a mini-cluster environment.
     """
     from pyflink.common import WatermarkStrategy  # type: ignore[import]
-    from pyflink.datastream.connectors.kafka import KafkaOffsetResetStrategy  # type: ignore[import]
-    from streamgraph.connectors.kafka_source import build_transaction_source
-    from streamgraph.connectors.kafka_sink import build_alert_sink, build_component_sink
+    from streamgraph.connectors.kafka_source import (
+        build_transaction_source,
+        build_confirmation_source,
+    )
+    from streamgraph.connectors.kafka_sink import (
+        build_alert_sink,
+        build_component_sink,
+        build_confirmation_audit_sink,
+    )
 
     parallelism = settings.flink.parallelism
 
@@ -193,6 +200,23 @@ def build_pipeline(env: Any) -> None:
     # ---- Alert sink ---------------------------------------------------
     alert_sink = build_alert_sink()
     scoring_stream.sink_to(alert_sink).name("sink-alerts")
+
+    # ---- Fraud confirmations (analyst feedback loop) ------------------
+    # Reads from fraud-confirmations topic, writes labels to Redis (db=1),
+    # and re-publishes to fraud-confirmations-audit for the audit log.
+    confirmation_source = build_confirmation_source()
+    confirmation_stream = (
+        env.from_source(
+            confirmation_source,
+            WatermarkStrategy.no_watermarks(),
+            "kafka-confirmations",
+        )
+        .set_parallelism(1)
+        .map(FraudConfirmationFunction(), output_type=Types.STRING())
+        .name("fraud-confirmation-writer")
+    )
+    audit_sink = build_confirmation_audit_sink()
+    confirmation_stream.sink_to(audit_sink).name("sink-confirmations-audit")
 
 
 # ---------------------------------------------------------------------------

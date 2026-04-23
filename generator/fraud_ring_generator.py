@@ -41,6 +41,25 @@ console = Console()
 fake = Faker()
 Faker.seed(42)
 
+# Prometheus metrics — started lazily in main() when running against Kafka
+try:
+    from prometheus_client import Counter, Gauge, start_http_server  # type: ignore[import]
+    _TXN_COUNTER = Counter(
+        "streamgraph_transactions_generated_total",
+        "Total transactions emitted by the generator",
+    )
+    _FRAUD_RATIO_GAUGE = Gauge(
+        "streamgraph_fraud_ring_ratio",
+        "Current fraction of emitted transactions from fraud rings",
+    )
+    _ACTIVE_RINGS_GAUGE = Gauge(
+        "streamgraph_active_fraud_rings",
+        "Number of active fraud ring definitions",
+    )
+    _PROM_AVAILABLE = True
+except ImportError:
+    _PROM_AVAILABLE = False
+
 
 # ---------------------------------------------------------------------------
 # Synthetic entity pools
@@ -405,6 +424,10 @@ class TransactionEmitter:
 
         self._rng.shuffle(txns)
         self._emitted += len(txns)
+        if _PROM_AVAILABLE:
+            _TXN_COUNTER.inc(len(txns))
+            ratio = self._fraud_emitted / self._emitted if self._emitted else 0.0
+            _FRAUD_RATIO_GAUGE.set(ratio)
         return txns
 
     def stream_to_stdout(self) -> None:
@@ -497,6 +520,11 @@ def main(
         console.print(f"  {pat}: {cnt}")
 
     emitter = TransactionEmitter(pool, rings, events_per_second, fraud_ratio, seed)
+
+    if _PROM_AVAILABLE:
+        _ACTIVE_RINGS_GAUGE.set(len(rings))
+        start_http_server(9090)
+        console.print("  metrics exposed on :9090")
 
     if dry_run:
         rng = random.Random(seed)

@@ -90,6 +90,8 @@ services:
         kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic raw-transactions --partitions 8 --replication-factor 1 --config retention.ms=86400000 --config cleanup.policy=delete &&
         kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic fraud-alerts --partitions 4 --replication-factor 1 --config retention.ms=604800000 --config cleanup.policy=delete &&
         kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic entity-components --partitions 8 --replication-factor 1 --config retention.ms=3600000 --config cleanup.policy=delete &&
+        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic fraud-confirmations --partitions 1 --replication-factor 1 --config retention.ms=604800000 --config cleanup.policy=delete &&
+        kafka-topics --bootstrap-server kafka:9093 --create --if-not-exists --topic fraud-confirmations-audit --partitions 1 --replication-factor 1 --config retention.ms=604800000 --config cleanup.policy=delete &&
         echo 'Topics created successfully' &&
         kafka-topics --bootstrap-server kafka:9093 --list
     restart: "no"

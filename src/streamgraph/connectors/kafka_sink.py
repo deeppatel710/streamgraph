@@ -62,3 +62,13 @@ def build_component_sink(
     bs = bootstrap_servers or settings.kafka.bootstrap_servers
     tp = topic or settings.kafka.components_topic
     return _base_sink_builder(bs, tp)
+
+
+def build_confirmation_audit_sink(
+    bootstrap_servers: str | None = None,
+    topic: str | None = None,
+) -> Any:
+    """KafkaSink that re-publishes processed fraud confirmations for audit."""
+    bs = bootstrap_servers or settings.kafka.bootstrap_servers
+    tp = topic or (settings.kafka.confirmations_topic + "-audit")
+    return _base_sink_builder(bs, tp)

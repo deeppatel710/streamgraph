@@ -16,6 +16,7 @@ class KafkaSettings(BaseSettings):
     transactions_topic: str = "raw-transactions"
     alerts_topic: str = "fraud-alerts"
     components_topic: str = "entity-components"
+    confirmations_topic: str = "fraud-confirmations"
     consumer_group: str = "streamgraph-pipeline"
     auto_offset_reset: str = "earliest"
     # Kafka producer tuning
